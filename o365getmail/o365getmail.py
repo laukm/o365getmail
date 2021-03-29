@@ -98,7 +98,6 @@ def parse_arguments(args):
     parser.add_argument('-a', '--auth', action='store_true', default=False, help='Get initial or refresh token if authentification expired.')
     parser.add_argument('-k', '--keep', action='store_true', default=False, help='Keep messages after pushing to MDA.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='Output logger infromation to Screen.')
-    parser.add_argument('-m', '--message', default=None, help='Email message as ''*.eml'' to push to RT.')
 
     return parser.parse_args(args)
 
@@ -141,7 +140,7 @@ def reauth_token(opt):
                 if opt.verbose:
                     logger.info("Token for %s has been refreshed.", user['user_id'])
         except Exception as ex:
-            logger.exception('Prozedure reauth_token threw an error.\n{}'.format(ex))
+            logger.exception('Procedure reauth_token threw an error.\n{}'.format(ex))
 
 
 def get_messages_cnt(inbox, user_id, verbose):
@@ -248,13 +247,13 @@ def push_message(abs_filename, user, verbose=False, keep=False):
 
     try:
         p1 = subprocess.Popen(['cat', abs_filename], stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(['/opt/rt4/bin/rt-mailgate --queue ''{}'' --action {} --url ''{}'' --ca-file ''{}'''.format(
-            user['queue'], user['action'], config.RT_URL, config.CA_FILE)],
+        p2 = subprocess.Popen(['/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read'],
             stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         p1.stdout.close()
-        output = p2.communicate()
+        p2.communicate()
+        rc = p2.returncode
 
-        if output[1] != b'':
+        if rc > 0:
             logger.error("Error pushing '{}' onwards.".format(abs_filename))
             os.rename(abs_filename, '{}.error'.format(abs_filename))
         else:
