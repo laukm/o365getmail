@@ -215,28 +215,6 @@ def get_files_in_folder(folder):
     return [fn for fn in os.listdir(folder) if fn.lower().endswith('.eml')]
 
 
-def push_specific_message(abs_filename, verbose=False, keep=False):
-    """Push from command line"""
-    import email
-    import re
-
-    f = open(abs_filename, "rb")
-    message = email.message_from_binary_file(f)
-    f.close()
-    headers = message._headers
-
-    to_addr = ''
-
-    for h in headers:
-        if h[0] == 'To':
-            # multiple addresses possible
-            to_addr = (re.findall(r'[\w\.-]+@[\w\.-]+', h[1]))
-
-    for u in config.USERS:
-        if u['user_id'] in to_addr:
-            push_message(abs_filename, u, verbose, keep)
-
-
 def push_message(abs_filename, user, verbose=False, keep=False):
     """Push messages"""
     import subprocess
@@ -309,10 +287,6 @@ def main(args) -> None:
         # add the handlers to the logger
         # logging.getLogger('').addHandler(ch)
         logger.addHandler(ch)
-
-    if opt.message:
-        push_specific_message(opt.message, opt.verbose, opt.keep)
-        sys.exit(0)
 
     # Check if required folders exist
     check_for_folders()
