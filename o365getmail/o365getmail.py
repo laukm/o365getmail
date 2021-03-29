@@ -9,7 +9,7 @@
 
 """
     ToDo's
-    - Change Logging to more conviniet version
+    - Change Logging to more convenient version
     - implement single file push
     - improve mail sending
 """
@@ -137,78 +137,7 @@ def reauth_token(opt):
                 logger.debug("Token for %s (%s) has been refreshed.", user['user_id'], account.con.token_backend.token_path )
                 if opt.verbose: logger.info("Token for %s has been refreshed.", user['user_id'])
         except Exception as ex:
-            logger.exception('Prozedure reauth_token throw an error.\n{}'.format(ex))
-
-
-
-def notify_admin(template, param):
-    """Notify admin"""
-    if template == 'TEMPL_NEEDS_REAUTH':
-        template = '''
-        !!! Token no longer valid !!!
-
-        o365getmail failed due to authentification error.
-        User "{user}" requiers valid token.
-        
-        Login to server and run: 
-                o365getmail --auth
-        to fix the problem.
-
-        Regards,
-        RT Admin
-        '''.format(user=param)
-        subj = "o365getmail user '{}' requires authentification".format(param)
-    elif template == 'TEMPL_MESSAGE_SAVE_ERROR':
-        template = """
-        !!! Storing message failed !!!
-
-        Could not store:
-            {msg}
-        """.format(msg=param)
-        subj = "o365getmail could not pull message"
-    elif template == 'TEMPL_MESSAGE_PUSH_ERROR':
-        template = """
-        !!! Pushing message failed !!!
-
-        Could not push:
-            {msg}
-        """.format(msg=param)
-        subj = "o365getmail could not push message to RT"
-
-    logger.debug("Notify Admin template: %s", template)
-
-    
-    to_addr = [RT_ADMIN_MAIL]
-    #cc_addr = ['test@testdomain.xyz']
-    from_addr = 'admin.requesttracker@testdomain.xyz',
-
-    send_mail(subj, to_addr, cc_addr, from_addr, template)
-
-
-
-# method to send email over smtp relayhost
-def send_mail(subject: str, to_addr: [str], cc_addr: [str], from_addr: str, body_text: str):
-    """Send an email"""    
-   
-    BODY = "\r\n".join((
-            "From: %s" % from_addr,
-            "To: %s" % ",".join(to_addr),
-            "Cc: %s" % ",".join(cc_addr),
-            "Subject: %s" % subject ,
-            "",
-            body_text
-            ))
-
-
-    toaddrs = to_addr + cc_addr
-    print(toaddrs)
-
-    server = smtplib.SMTP(SMTPRELAY_HOST)
-    logger.debug("logger.getChild('Console').level = %s", logger.getChild('Console').level)
-    if logger.getChild('Console').level == logging.DEBUG:
-        server.set_debuglevel(1)    
-    server.sendmail(from_addr, toaddrs, BODY)
-    server.quit()
+            logger.exception('Prozedure reauth_token threw an error.\n{}'.format(ex))
 
 
 
@@ -236,7 +165,7 @@ def get_messages(opt):
         try:            
             account = getAccount(user['user_id'])
             if not account.is_authenticated:
-                notify_admin('TEMPL_NEEDS_REAUTH', user['user_id'])
+                logger.debug("The account %s needs a reauthentication", user['user_id'])
             else:
                 mailbox = account.mailbox()
                 inbox = mailbox.inbox_folder()
@@ -252,7 +181,7 @@ def get_messages(opt):
                     # email creation date
                     created = message.created.strftime("%Y%m%d_%H%M%S")
 
-                    # create unic file absolut path and name
+                    # create unique file absolut path and name
                     safe_filename = safe_file_name('{}_{}_{}'.format(created, message.sender.address, message.subject))
                     msg_abs_path = os.path.join(mail_folder, '{}.eml'.format(safe_filename))                    
                     
@@ -260,70 +189,28 @@ def get_messages(opt):
                     try:
                         ret = message.save_as_eml(to_path=msg_abs_path)
                         if not ret:
-                            notify_admin('TEMPL_MESSAGE_SAVE_ERROR', 'From:<{}>\nSubject:{}\nCreated Date:{}'.format(message.sender, message.subject, created))   
+                            logger.debug("From:<{}>\nSubject:{}\nCreated Date:{}".format(message.sender, message.subject, created))   
                     except FileNotFoundError:
                         try: # try rename
                             msg_abs_path = os.path.join(mail_folder, '{}_{}.eml'.format(created, message.conversation_id))
                             ret = message.save_as_eml(to_path=msg_abs_path)
                         except FileNotFoundError:
-                            notify_admin('TEMPL_MESSAGE_SAVE_ERROR', 'From:<{}>\nSubject:{}\nCreated Date:{}'.format(message.sender, message.subject, created))
+                            logger.debug("FileNotFoundError")
+                            logger.debug('From:<{}>\nSubject:{}\nCreated Date:{}'.format(message.sender, message.subject, created))
                     except Exception as ex:
-                        notify_admin('TEMPL_MESSAGE_SAVE_ERROR', 'From:<{}>\nSubject:{}\nCreated Date:{}'.format(message.sender, message.subject, created))                        
+                        logger.debug("MessageSaveError")
+                        logger.debug('From:<{}>\nSubject:{}\nCreated Date:{}'.format(message.sender, message.subject, created))                        
 
                     message.mark_as_read()
 
         except Exception as ex:
-            logger.exception('Prozedure get_messages throw an error.\n{}'.format(ex))
+            logger.exception('Procedure get_messages threw an error.\n{}'.format(ex))
 
 
 
 def get_files_in_folder(folder):
     """Return files from folder"""
     return [fn for fn in os.listdir(folder) if fn.lower().endswith('.eml')]
-
-
-
-def push_message_as_forward(abs_filename, user, verbose = False, keep = False):
-    """If push faild, try to forward"""
-    import email, re    
-    import email.mime
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.base import MIMEBase
-    from email.mime.text import MIMEText
-    
-    f = open(abs_filename, "rb")
-    message_to_forward = email.message_from_binary_file(f)
-    f.close()
-    headers = message_to_forward._headers
-
-    from_addr = ''
-    subject = ''
-
-    for h in headers:
-        if h[0] == 'From': from_addr = (re.search(r'[\w\.-]+@[\w\.-]+', h[1])).group(0) # single address
-        #if h[0] == 'To': to_addr = (re.findall(r'[\w\.-]+@[\w\.-]+', h[1])) # multiple addresses possible
-        if h[0] == 'Subject': subject = h[1]
-
-
-    message = MIMEBase("multipart", "mixed")
-    message["Subject"] = subject
-    message["From"] = from_addr
-    message["To"] = user['user_id']
-
-    message.attach(MIMEText("""
-        This email was automatically generated and forwarded. 
-        Original Email is attached.
-    """))
-
-    rfcmessage = MIMEBase("message", "rfc822")
-    rfcmessage.attach(message_to_forward)
-    message.attach(rfcmessage)
-
-    out_file = open('{}.frwd'.format(abs_filename), "w")
-    generator = email.generator.Generator(out_file)
-    generator.flatten(message)
-
-    push_message('{}.frwd'.format(abs_filename),user, verbose, keep)
 
 
 
@@ -363,27 +250,22 @@ def push_message(abs_filename, user, verbose = False, keep = False):
         output = p2.communicate()
 
         if output[1] != b'':
-            logger.error("Error pushing '{}' to RT.".format(abs_filename))
-            if not abs_filename.endswith('.frwd'):
-                push_message_as_forward(abs_filename, user, verbose, keep)
-            if verbose: logger.info("Failed")
+            logger.error("Error pushing '{}' onwards.".format(abs_filename))
             os.rename(abs_filename, '{}.error'.format(abs_filename))
-            notify_admin('TEMPL_MESSAGE_PUSH_ERROR', 'Failed to push: {}'.format('{}.error'.format(abs_filename))) 
         else:
-            logger.debug("Pushed '{}' to RT.".format(abs_filename))
-            if verbose: logger.info("Success")
+            logger.debug("Pushed '{}' onwards.".format(abs_filename))
             
             if keep:
                 os.rename(abs_filename, '{}.keep'.format(abs_filename))
             else:
                 os.remove(abs_filename)
     except Exception as ex:
-        logger.exception('Prozedure push_message throw an error.\n%s', ex)
+        logger.exception('Procedure push_message threw an error.\n%s', ex)
 
 
 
 def push_messages(opt):
-    """Push messages to MDA of RT"""
+    """Push messages onwards"""
     for n in range(0, len(config.USERS)):
         user = config.USERS[n]
         mail_folder= os.path.join(config.MAIL_PATH, user['user_id'])        
@@ -438,9 +320,8 @@ def main(args)->None:
     # get messages from o365
     get_messages(opt)
 
-    # push messages to RT
+    # push messages 
     push_messages(opt)
-
 
 
 
