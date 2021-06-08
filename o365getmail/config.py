@@ -41,7 +41,7 @@ USERS.append({"user_id":"EMAIL@OUTLOOK.COM", "queue":"Microsurgery", "action":"c
 
 
 # MDA settings
-RT_URL = 'https://dev-med-rt.zeiss.com/'
+RT_URL = ''
 CA_FILE = '/usr/local/share/ca-certificates/yourCertificate.cer'
 # "MDA": "/opt/rt4/bin/rt-mailgate --queue 'Microsurgery' --action correspond --url https://dev-med-rt.zeiss.com/ --ca-file /usr/local/share/ca-certificates/dev-med-rt.zeiss.com/dev_med_rt.zeiss.com.cer"
 
